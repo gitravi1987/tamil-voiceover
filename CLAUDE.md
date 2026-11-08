@@ -23,4 +23,4 @@ Flag it explicitly when the current model is more expensive than the task needs.
 - `docs/`: PRD, architecture, roadmap, legal
 
 ## Testing
-Load `extension/` unpacked in Chrome (`chrome://extensions` → Developer mode → Load unpacked), open a Netflix title with subtitles on, and check the DevTools console for `[TamilVO]` logs.
+Logic test (no Netflix needed): `node tests/phase1.test.js`. Real test: see `docs/PHASE1-TEST.md`. Load `extension/` unpacked in Chrome (`chrome://extensions` → Developer mode → Load unpacked), open a Netflix title with subtitles on, and check the DevTools console for `[TamilVO]` logs.

@@ -2,7 +2,7 @@
 
 A personal browser extension that gives **English Netflix movies a live Tamil voiceover**, so the whole family can enjoy them together. It speaks natural, conversational Tamil the way people talk at home.
 
-> Status: **Phase 0: project setup.** Not usable yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
+> Status: **Phase 1 built (untested on real Netflix).** It reads subtitles, speaks them with the free browser voice and dips the volume. Translation and the Sarvam voice come in Phase 2. Try it with the [Phase 1 test guide](docs/PHASE1-TEST.md). See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## How it works
 
