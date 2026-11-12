@@ -52,7 +52,9 @@ function renderStatus(st) {
 }
 
 function renderKeyState(hasKey) {
-  $("keyState").textContent = hasKey ? "Key saved ✓" : "No key saved yet";
+  $("keyState").textContent = hasKey ? "Key saved ✓" : "⚠ No key saved: the Sarvam voice stays silent until you save your key.";
+  $("keyState").style.color = hasKey ? "" : "#b00020";
+  $("keyState").style.fontWeight = hasKey ? "" : "600";
 }
 
 chrome.storage.local.get({ ...DEFAULTS, status: null, sarvamKey: "" }, (s) => {

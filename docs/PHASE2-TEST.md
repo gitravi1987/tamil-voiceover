@@ -3,9 +3,13 @@
 **Goal:** hear English Netflix lines in conversational Tamil with the Sarvam voice, and check delay, voice quality, volume and cost.
 
 ## 1. Update the extension (3 minutes)
-1. Download the repo ZIP again (**Code -> Download ZIP**) and unzip it, preferably into a new folder.
-2. In Edge open `edge://extensions`. Remove the old Tamil Voiceover, then **Load unpacked** and pick the new **`extension`** folder (the one that contains `manifest.json`).
-3. The popup title area should now show the new popup with a **Sarvam key** section.
+**Important: do not click Remove when updating.** Removing the extension deletes your saved key and settings.
+1. Keep the extension in one fixed folder, for example `Documents\tamil-voiceover\extension`.
+2. To update: download the repo ZIP (**Code -> Download ZIP**), unzip it, and copy the files from its `extension` folder **over** the files in your fixed folder (replace them).
+3. In Edge open `edge://extensions` and click the **reload arrow** on the Tamil Voiceover card. Your key and settings stay.
+4. Reload the Netflix tab (Ctrl+Shift+R).
+
+First install only: **Load unpacked** and pick the fixed `extension` folder (the one that contains `manifest.json`).
 
 ## 2. Add your key and a safety cap
 1. Open the popup, paste your Sarvam key into **Sarvam key**, click **Save key**. The box clears and says **Key saved**.
@@ -36,7 +40,7 @@ Click **Copy diagnostics** (it never includes your key) and paste it in the chat
 
 ## Re-test after v0.2.1 (pacing fix)
 v0.2.1 stops cutting lines off: lines play in order, the voice speeds up when behind, tiny lines are skipped when behind, and requests run in parallel. Use the **same fast scene** as before.
-1. Update the extension (remove the old one, Load unpacked the new `extension` folder) and reload the Netflix tab.
+1. Update the extension as in step 1 above (copy over the files, click the reload arrow; do **not** remove it) and reload the Netflix tab.
 2. Watch 2 to 3 minutes with the default speed (1.2x). Then try speed **1.4** and the **Aravind (Tamil suspense)** voice, which may be livelier than Gokul's narration style.
 3. Optional: tick **Pause movie to let the voice catch up** for one run, to see if stop-and-go is acceptable for the family.
 4. Click **Copy diagnostics** and paste it in the chat. It now includes, for the last 20 lines: translate ms, voice ms, waited ms, total delay and speed. These numbers decide the next fix.
