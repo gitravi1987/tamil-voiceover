@@ -29,7 +29,7 @@ Netflix page (netflix.com/watch/*)
 - Auth header: `api-subscription-key`. Auth failures return HTTP 403 (not 401); exhausted credits return 402 `insufficient_quota_error`.
 - Translate: `POST https://api.sarvam.ai/translate`, max 1,000 characters (mayura:v1), modes `formal | modern-colloquial | classic-colloquial | code-mixed`, answer field `translated_text`.
 - Text-to-speech: `POST https://api.sarvam.ai/text-to-speech`, max 2,500 characters, answer `audios` (base64). `pace` 0.5 to 2.0. Pitch and loudness are not supported on v3 / v4 Flash.
-- v4 Flash voices are persona IDs like `simran_en_conversation`. The only Tamil-tagged v4 Flash personas listed are `gokul_ta_narration`, `vijay_ta_narration`, `aravind_ta_ads`, `aravind_ta_suspense` (all male). Whether the Simran personas read Tamil text well is judged by ear, not guaranteed by the docs.
+- v4 Flash voices are persona IDs like `simran_en_conversation`. The only Tamil-tagged v4 Flash personas listed are `gokul_ta_narration`, `vijay_ta_narration`, `aravind_ta_ads`, `aravind_ta_suspense` (all male). The default is `gokul_ta_narration` (the owner's choice after listening). Whether the Simran personas read Tamil text well is judged by ear, not guaranteed by the docs.
 - Price (pay-as-you-go, per 1,000 characters): translate Rs 2, Bulbul v4 Flash Rs 2 (Rs 1 during an offer that ended 12 Nov), Bulbul v3 Rs 3.
 - Rate limits (pay-as-you-go): 60 requests per minute for translate and 60 for text-to-speech.
 

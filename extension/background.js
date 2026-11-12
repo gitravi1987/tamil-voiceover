@@ -22,7 +22,7 @@ const PRICE_PER_1000 = { translate: 2.0, "bulbul:v4-flash": 2.0, "bulbul:v3": 3.
 const DEFAULTS = {
   sarvamKey: "",
   model: "bulbul:v4-flash",
-  speaker: "simran_en_conversation", // default guess; override with "Custom speaker ID" in the popup
+  speaker: "gokul_ta_narration", // Tamil-native persona (owner's choice); override with "Custom speaker ID" in the popup
   customSpeaker: "",
   rate: 1.0,           // spoken pace (Sarvam accepts 0.5 to 2.0)
   capRupees: 150,      // hard stop: no more API calls once the estimated spend reaches this

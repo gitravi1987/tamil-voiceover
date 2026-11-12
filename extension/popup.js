@@ -4,7 +4,7 @@
 
 const DEFAULTS = {
   enabled: true, mode: "sarvam", dip: 0.25, rate: 1.0, boost: 1.0, hideSubtitles: false,
-  model: "bulbul:v4-flash", speaker: "simran_en_conversation", customSpeaker: "", capRupees: 150,
+  model: "bulbul:v4-flash", speaker: "gokul_ta_narration", customSpeaker: "", capRupees: 150,
   usage: { translateChars: 0, ttsChars: 0, rupees: 0 },
 };
 const $ = (id) => document.getElementById(id);

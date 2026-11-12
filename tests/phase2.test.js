@@ -86,7 +86,7 @@ async function partA() {
     text: "டேய் இங்க வா",
     language_code: "ta-IN",
     model: "bulbul:v4-flash",
-    speaker: "simran_en_conversation",
+    speaker: "gokul_ta_narration",
     pace: 1,
     output_audio_codec: "mp3",
   });

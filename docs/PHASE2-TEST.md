@@ -14,7 +14,7 @@
 
 ## 3. Check the voice
 1. Click **Speak sample**. You should hear a Tamil sentence.
-2. Not the voice you liked in the Sarvam playground? In the playground open the **Code** tab, copy the exact `speaker` value, and paste it into **Custom speaker ID** in the popup. (Our default, `simran_en_conversation`, is a guess.)
+2. The default voice is **Gokul** (Tamil narration, male). To try another, pick it in the **Voice** list. For a voice that is not in the list, open the Sarvam playground **Code** tab, copy the exact `speaker` value, and paste it into **Custom speaker ID**. If the Voice list still shows another voice after updating, pick Gokul once: the popup remembers whatever it saved before.
 
 ## 4. Watch
 1. Open Interstellar with **English subtitles** and **reload the Netflix tab** (Ctrl+Shift+R) so the new extension attaches.
