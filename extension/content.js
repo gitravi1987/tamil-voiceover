@@ -29,6 +29,7 @@
     rate: 1.2,            // base speaking speed (browser voice rate and Sarvam pace)
     boost: 1.0,           // loudness of the Sarvam voice (1.0 = normal)
     hideSubtitles: false, // hide the on-screen subtitle text (voice only)
+    skipSoundCaptions: true, // do not voice sound descriptions like [MUSIC] or (sighs)
     browserVoice: "",     // name of the browser Tamil voice to use ("" = first Tamil voice found)
     maxLagMs: 6000,       // skip a line if it would start more than this long after its subtitle appeared
     catchUpPause: false,  // pause the movie while 2+ lines are waiting, resume when caught up
@@ -77,7 +78,7 @@
   // ---- Status shown in the popup (so you don't need DevTools) -------------
   let status = {
     voice: "checking…", engine: "-", lastLine: "", lastTamil: "", note: "waiting for subtitles",
-    spoken: 0, skipped: 0, avgDelayMs: null, recent: [],
+    spoken: 0, skipped: 0, captionsSkipped: 0, avgDelayMs: null, recent: [],
   };
   function setStatus(patch) {
     status = { ...status, ...patch };
@@ -370,10 +371,32 @@
   }
 
   // ---- Handling each subtitle line ---------------------------------------
-  function handleLine(text) {
-    console.log("[TamilVO] subtitle:", text);
-    setStatus({ lastLine: text });
+  // Subtitles for deaf viewers also describe sounds: "[ BREATHES DEEPLY ]", "(sighs)", "♪ ... ♪".
+  // Nobody wants those read aloud (and in Sarvam mode they cost money), so strip them.
+  // "[GROANS] Come on!" keeps only "Come on!".
+  function cleanCaption(raw) {
+    return raw
+      .replace(/\[[^\]]*\]/g, " ")       // [ BREATHES DEEPLY ], [MUSIC]
+      .replace(/\[[^\]]*$/g, " ")        // a bracket that never closes
+      .replace(/\([^)]*\)/g, " ")        // (sighs)
+      .replace(/[♪♫][^♪♫]*[♪♫]?/g, " ")    // ♪ music or sung lyrics ♪
+      .replace(/\s+/g, " ")
+      .replace(/^[\s\-–—:,.;!?…]+/, "")    // leftover punctuation or a leading dash
+      .trim();
+  }
+
+  function handleLine(rawText) {
+    console.log("[TamilVO] subtitle:", rawText);
+    setStatus({ lastLine: rawText });
     if (!settings.enabled) return setStatus({ note: "paused (switched off)" });
+
+    let text = rawText;
+    if (settings.skipSoundCaptions) {
+      text = cleanCaption(rawText);
+      if (!/[\p{L}\p{N}]/u.test(text)) { // nothing left to say
+        return setStatus({ captionsSkipped: (status.captionsSkipped || 0) + 1, note: "sound-description caption skipped" });
+      }
+    }
 
     const isTamil = TAMIL_RE.test(text);
     if (settings.mode === "sarvam") {

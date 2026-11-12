@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tamil Voiceover for Netflix",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Live conversational-Tamil voiceover from Netflix subtitles (personal use).",
   "permissions": ["storage"],
   "host_permissions": ["https://www.netflix.com/*", "https://api.sarvam.ai/*"],

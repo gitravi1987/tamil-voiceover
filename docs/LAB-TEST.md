@@ -28,3 +28,6 @@ Press **Copy diagnostics** and paste it in the chat. It contains the lab result 
 
 ## Why this matters
 If the built-in translator works and sounds good enough, the whole voiceover can be free. If not, the next options are in `docs/VOICE-OPTIONS.md`.
+
+## New in v0.2.3: sound descriptions are no longer read aloud
+Subtitles for deaf viewers include lines like `[ BREATHES DEEPLY ]`, `(sighs)` and `♪ ... ♪`. They are now skipped (so they are not voiced and, in Sarvam mode, not paid for). `[GROANS] Come on!` becomes just `Come on!`. The popup has a checkbox **Skip sound descriptions like [MUSIC] or (sighs)** (on by default) and the status shows how many were skipped. Update the same way as above (copy files over the folder, press the reload arrow).
