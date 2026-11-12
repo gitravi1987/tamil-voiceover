@@ -1,4 +1,4 @@
-# Phase 2 test guide (Sarvam voice on Netflix)
+# Phase 2 test guide (Sarvam voice on Netflix), updated for v0.2.1
 
 **Goal:** hear English Netflix lines in conversational Tamil with the Sarvam voice, and check delay, voice quality, volume and cost.
 
@@ -33,3 +33,10 @@ Click **Copy diagnostics** (it never includes your key) and paste it in the chat
 - Cost is an estimate from Sarvam's price list: translate Rs 2 plus voice Rs 2 per 1,000 characters.
 - Sarvam allows 60 requests per minute per service on pay-as-you-go. Very fast dialogue may hit this; the popup status will say so.
 - If the status says the key was rejected (403), re-save the key. If it says out of credits, top up on the Sarvam dashboard.
+
+## Re-test after v0.2.1 (pacing fix)
+v0.2.1 stops cutting lines off: lines play in order, the voice speeds up when behind, tiny lines are skipped when behind, and requests run in parallel. Use the **same fast scene** as before.
+1. Update the extension (remove the old one, Load unpacked the new `extension` folder) and reload the Netflix tab.
+2. Watch 2 to 3 minutes with the default speed (1.2x). Then try speed **1.4** and the **Aravind (Tamil suspense)** voice, which may be livelier than Gokul's narration style.
+3. Optional: tick **Pause movie to let the voice catch up** for one run, to see if stop-and-go is acceptable for the family.
+4. Click **Copy diagnostics** and paste it in the chat. It now includes, for the last 20 lines: translate ms, voice ms, waited ms, total delay and speed. These numbers decide the next fix.

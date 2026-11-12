@@ -13,12 +13,19 @@ Netflix page (netflix.com/watch/*)
  popup.html / popup.js    settings, key (write-only), Speak sample, usage, diagnostics
 ```
 
-## Per-line flow
-1. Subtitle text changes -> de-duplicated (80 ms debounce) -> `seq` number given.
-2. English line: translate then speak. Tamil-script line: speak only (`skipTranslate`).
-3. If a newer line arrived while waiting, the old answer is discarded (newest line wins).
-4. If the answer took longer than `maxLateMs` (4 s), it is dropped rather than spoken out of sync.
-5. Audio plays through Web Audio with a gain node (voice loudness setting) and the movie volume dips; it is restored when the line ends. A safety timer restores the volume after about 3 s of silence.
+## Per-line flow (Phase 2.1: ordered queue)
+1. Subtitle text changes -> de-duplicated (80 ms debounce) -> added to an ordered queue.
+2. Its Sarvam request starts at once; up to 3 lines are in flight in parallel. English: translate then voice. Tamil-script: voice only (`skipTranslate`).
+3. Lines play **in order** and a playing line is **never cut off** (only seek, pause or switching off stops it).
+4. Catch-up rules when a line is about to play:
+   - lag over `maxLagMs` (6 s): skipped;
+   - behind (lag over 2.5 s or 2+ lines waiting) and the line has 2 words or fewer: skipped;
+   - speed: each request asks for `base speed x (1 + 0.15 x lines waiting)`, up to 2.0 (Sarvam's limit).
+5. Optional "Pause movie to catch up": pauses the video while 2+ lines wait and resumes when the queue is empty (normal player controls only).
+6. Audio plays through Web Audio with a gain node (voice loudness); the movie volume dips and is restored when nothing follows straight away. A safety timer restores it after about 3 s of silence.
+7. Timings per line (translate ms, voice ms, waited ms, total ms, speed) go to the popup status and Copy diagnostics.
+
+Browser-voice modes (`tamil`, `timing`) still use the Phase 1 rule: the newest line interrupts the old one.
 
 ## Modes
 - `sarvam`: translate + Sarvam voice (needs a key)

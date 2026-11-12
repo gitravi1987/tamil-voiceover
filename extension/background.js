@@ -24,7 +24,7 @@ const DEFAULTS = {
   model: "bulbul:v4-flash",
   speaker: "gokul_ta_narration", // Tamil-native persona (owner's choice); override with "Custom speaker ID" in the popup
   customSpeaker: "",
-  rate: 1.0,           // spoken pace (Sarvam accepts 0.5 to 2.0)
+  rate: 1.2,           // base spoken pace (Sarvam accepts 0.5 to 2.0); the page may send a faster pace to catch up
   capRupees: 150,      // hard stop: no more API calls once the estimated spend reaches this
   usage: { translateChars: 0, ttsChars: 0, rupees: 0 },
 };
@@ -105,18 +105,18 @@ async function addUsage(translateChars, ttsChars, model) {
 }
 
 // ---- the work ------------------------------------------------------------
-async function speakLine({ text, skipTranslate }) {
+async function speakLine({ text, skipTranslate, pace: requestedPace }) {
   const s = await chrome.storage.local.get(DEFAULTS);
   if (!s.sarvamKey) throw new SarvamError("no_key");
   const u = await loadUsage();
   const model = s.model in PRICE_PER_1000 ? s.model : DEFAULTS.model;
   const speaker = speakerFor(model, (s.customSpeaker || s.speaker).trim());
-  const pace = clamp(s.rate, 0.5, 2.0);
+  const pace = +clamp(requestedPace == null ? s.rate : requestedPace, 0.5, 2.0).toFixed(2);
   const input = String(text).slice(0, 1000); // Mayura limit: 1,000 characters
 
   const cacheKey = [model, speaker, pace, skipTranslate ? "t" : "e", input].join("|");
   const hit = cacheGet(cacheKey);
-  if (hit) return { ...hit, cached: true };
+  if (hit) return { ...hit, cached: true, translateMs: 0, ttsMs: 0 };
 
   // Spend guard: refuse before calling if this line could push us over the cap.
   const worstCase = rupees(input.length, "translate") + rupees(input.length * 2, model);
@@ -124,6 +124,8 @@ async function speakLine({ text, skipTranslate }) {
 
   let tamil = input;
   let translateChars = 0;
+  let translateMs = 0;
+  const t0 = Date.now();
   if (!skipTranslate) {
     const t = await callSarvam("/translate", {
       input,
@@ -134,8 +136,10 @@ async function speakLine({ text, skipTranslate }) {
     }, s.sarvamKey);
     tamil = t.translated_text;
     translateChars = input.length;
+    translateMs = Date.now() - t0;
   }
 
+  const t1 = Date.now();
   const v = await callSarvam("/text-to-speech", {
     text: tamil.slice(0, 2500),
     language_code: "ta-IN",
@@ -145,8 +149,10 @@ async function speakLine({ text, skipTranslate }) {
     output_audio_codec: "mp3",
   }, s.sarvamKey);
 
+  const ttsMs = Date.now() - t1;
+
   await addUsage(translateChars, tamil.length, model);
-  const result = { ok: true, tamil, audio: v.audios[0] };
+  const result = { ok: true, tamil, audio: v.audios[0], translateMs, ttsMs };
   cacheSet(cacheKey, result);
   return result;
 }

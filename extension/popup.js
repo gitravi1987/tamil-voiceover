@@ -3,7 +3,7 @@
 // The Sarvam key is write-only here: it is saved, but never displayed or copied.
 
 const DEFAULTS = {
-  enabled: true, mode: "sarvam", dip: 0.25, rate: 1.0, boost: 1.0, hideSubtitles: false,
+  enabled: true, mode: "sarvam", dip: 0.25, rate: 1.2, boost: 1.0, hideSubtitles: false, catchUpPause: false,
   model: "bulbul:v4-flash", speaker: "gokul_ta_narration", customSpeaker: "", capRupees: 150,
   usage: { translateChars: 0, ttsChars: 0, rupees: 0 },
 };
@@ -34,6 +34,7 @@ function render(s) {
   $("boost").value = s.boost;
   renderLabels(s);
   $("hideSubtitles").checked = s.hideSubtitles;
+  $("catchUpPause").checked = s.catchUpPause;
   $("capRupees").value = s.capRupees;
   renderUsage(s.usage);
 }
@@ -43,7 +44,11 @@ function renderStatus(st) {
   $("status").textContent =
     `Voice engine: ${st.engine}\nBrowser Tamil voice: ${st.voice}\nNow: ${st.note}\n` +
     `Last line: ${st.lastLine || "(none yet)"}\nTamil: ${st.lastTamil || "(none yet)"}\n` +
-    `Delay: ${st.latencyMs == null ? "-" : st.latencyMs + " ms"}`;
+    `Spoken: ${st.spoken || 0} | Skipped: ${st.skipped || 0} | Avg delay: ${st.avgDelayMs == null ? "-" : st.avgDelayMs + " ms"}` +
+    (st.recent && st.recent.length
+      ? (() => { const t = st.recent[st.recent.length - 1];
+          return `\nTiming: translate ${t.translateMs} ms, voice ${t.voiceMs} ms, waited ${t.waitMs} ms, total ${t.totalMs} ms, speed ${t.pace}x`; })()
+      : "");
 }
 
 function renderKeyState(hasKey) {
@@ -72,13 +77,14 @@ function save() {
     rate: Number($("rate").value),
     boost: Number($("boost").value),
     hideSubtitles: $("hideSubtitles").checked,
+    catchUpPause: $("catchUpPause").checked,
     capRupees: Number($("capRupees").value) || 0,
   };
   renderLabels(s);
   chrome.storage.local.set(s);
 }
 
-["enabled", "mode", "model", "speaker", "customSpeaker", "dip", "rate", "boost", "hideSubtitles", "capRupees"]
+["enabled", "mode", "model", "speaker", "customSpeaker", "dip", "rate", "boost", "hideSubtitles", "catchUpPause", "capRupees"]
   .forEach((id) => $(id).addEventListener("input", save));
 
 // ---- key (write-only) ----

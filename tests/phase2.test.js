@@ -87,7 +87,7 @@ async function partA() {
     language_code: "ta-IN",
     model: "bulbul:v4-flash",
     speaker: "gokul_ta_narration",
-    pace: 1,
+    pace: 1.2,
     output_audio_codec: "mp3",
   });
   ok("English line -> /translate (modern-colloquial Tamil) -> /text-to-speech with the exact documented fields");
@@ -108,6 +108,14 @@ async function partA() {
   assert.strictEqual(f.calls.length, 2);
   assert.strictEqual(bg.store.usage.translateChars, u.translateChars);
   ok("a repeated line is served from memory and not billed again");
+
+  // the page can ask for a faster pace to catch up; timings come back
+  f = fakeSarvam();
+  bg = makeBackground({ sarvamKey: KEY }, f);
+  r = await bg.send({ type: "line", text: "Faster please", pace: 1.6 });
+  assert.strictEqual(f.calls[1].body.pace, 1.6);
+  assert.ok(typeof r.translateMs === "number" && typeof r.ttsMs === "number");
+  ok("a per-line pace from the page is used, and translate/voice timings are returned");
 
   // Tamil line: skip translation
   f = fakeSarvam();
@@ -165,23 +173,26 @@ async function partA() {
 }
 
 // ---------------- Part B: content.js with fake chrome.runtime + fake AudioContext ----------------
+// The fake "audio" is just the line text in base64, so the test can see WHICH line was played.
 function fakeEnv(settings) {
   window.__settings = settings;
   window.__messages = [];
   window.__played = [];
+  window.__stopped = 0;
   window.__statuses = [];
-  window.__reply = (msg) => ({ ok: true, tamil: "தமிழ்", audio: "QUJD" });
+  window.__audioMs = 400;
+  window.__reply = (msg) => ({ ok: true, tamil: "தமிழ்", audio: btoa(unescape(encodeURIComponent(msg.text))), translateMs: 120, ttsMs: 340 });
   window.chrome = {
     storage: {
       local: {
         get: (d, cb) => cb({ ...d, ...window.__settings }),
-        set: (o) => { if (o.status) window.__statuses.push(o.status); },
+        set: (o) => { if (o.status) window.__statuses.push(JSON.parse(JSON.stringify(o.status))); },
       },
       onChanged: { addListener() {} },
     },
     runtime: {
       sendMessage: (msg) => {
-        window.__messages.push(msg);
+        window.__messages.push({ ...msg, at: performance.now() });
         return new Promise((res) => setTimeout(() => res(window.__reply(msg)), window.__delay ? window.__delay(msg) : 10));
       },
     },
@@ -193,15 +204,15 @@ function fakeEnv(settings) {
     resume() { return Promise.resolve(); }
     suspend() { return Promise.resolve(); }
     createGain() { const g = { gain: { value: 1 }, connect() {} }; window.__gain = g; return g; }
-    async decodeAudioData(b) { return { duration: 0.4, bytes: b.byteLength }; }
+    async decodeAudioData(b) { return { label: new TextDecoder().decode(new Uint8Array(b)) }; }
     createBufferSource() {
       const s = {
         connect() {},
         start() {
-          window.__played.push({ gain: window.__gain.gain.value });
-          s._t = setTimeout(() => s.onended && s.onended(), 400);
+          window.__played.push({ line: s.buffer.label, gain: window.__gain.gain.value });
+          s._t = setTimeout(() => s.onended && s.onended(), window.__audioMs);
         },
-        stop() { clearTimeout(s._t); },
+        stop() { window.__stopped++; clearTimeout(s._t); },
       };
       return s;
     }
@@ -216,71 +227,141 @@ async function openPage(browser, settings) {
   return page;
 }
 const setSub = (page, t) => page.evaluate((x) => { document.querySelector(".player-timedtext").textContent = x; }, t);
+// show a new subtitle line: let the previous one stay visible past the 80 ms flicker filter,
+// clear it briefly, then show the new text (real subtitles stay up far longer than this)
+async function line(page, t, gap = 120) { await sleep(gap); await setSub(page, ""); await sleep(gap); await setSub(page, t); }
 const volume = (page) => page.evaluate(() => document.getElementById("v").volume);
 const get = (page, k) => page.evaluate((key) => window[key], k);
+const lastStatus = async (page) => (await get(page, "__statuses")).pop();
 
 async function partB() {
   const browser = await chromium.launch();
 
-  // 1. English line -> background -> audio played at boosted gain, volume dips then restores
-  let page = await openPage(browser, { mode: "sarvam", dip: 0.25, boost: 1.8 });
-  await setSub(page, "Come here.");
-  await sleep(350);
-  assert.deepStrictEqual((await get(page, "__messages")).map((m) => [m.type, m.text, m.skipTranslate]), [["line", "Come here.", false]]);
-  const played = await get(page, "__played");
-  assert.strictEqual(played.length, 1);
-  assert.strictEqual(played[0].gain, 1.8);
-  assert.ok(Math.abs((await volume(page)) - 0.25) < 0.03, "movie volume should dip while Tamil plays, got " + (await volume(page)));
-  ok("Sarvam mode: line is sent to the background, audio plays at the chosen loudness, movie volume dips");
-  await sleep(650);
+  // B1: one English line
+  let page = await openPage(browser, { dip: 0.25, boost: 1.8 });
+  await setSub(page, "Come here now.");
+  await sleep(250);
+  let msgs = await get(page, "__messages");
+  assert.deepStrictEqual([msgs[0].type, msgs[0].text, msgs[0].skipTranslate, msgs[0].pace], ["line", "Come here now.", false, 1.2]);
+  let played = await get(page, "__played");
+  assert.deepStrictEqual(played.map((p) => [p.line, p.gain]), [["Come here now.", 1.8]]);
+  assert.ok(Math.abs((await volume(page)) - 0.25) < 0.03, "movie volume should dip, got " + (await volume(page)));
+  ok("Sarvam mode: line sent at the base speed (1.2x), played at the chosen loudness, movie volume dips");
+  await sleep(600);
   assert.ok(Math.abs((await volume(page)) - 1) < 0.03, "volume should be restored");
-  ok("movie volume returns to normal when the Tamil line ends");
+  const st = await lastStatus(page);
+  assert.strictEqual(st.spoken, 1);
+  assert.deepStrictEqual([st.recent[0].translateMs, st.recent[0].voiceMs], [120, 340]);
+  ok("volume returns to normal after the line; timings (translate 120 ms, voice 340 ms) reach the popup status");
 
-  // 2. Tamil line -> skipTranslate
-  await setSub(page, "");
-  await sleep(150);
-  await setSub(page, "டேய், வா!");
-  await sleep(150);
-  const msgs = await get(page, "__messages");
+  // B2: Tamil line -> skipTranslate
+  await line(page, "டேய், இங்க வா!");
+  await sleep(100);
+  msgs = await get(page, "__messages");
   assert.strictEqual(msgs[msgs.length - 1].skipTranslate, true);
   ok("a Tamil subtitle is sent with skipTranslate = true");
   await page.close();
 
-  // 3. stale answer is discarded: first line slow, second fast
-  page = await openPage(browser, { mode: "sarvam" });
-  await page.evaluate(() => { window.__delay = (m) => (m.text === "slow one" ? 600 : 10); });
-  await setSub(page, "slow one");
-  await sleep(150);
-  await setSub(page, "fast one");
-  await sleep(1300);
-  assert.strictEqual((await get(page, "__played")).length, 1, "only the newest line may be played");
-  ok("a slow answer for an old line is dropped when a newer line has arrived");
+  // B3: fast dialogue: lines play in order and are never cut off; speed rises as lines wait
+  page = await openPage(browser, {});
+  await page.evaluate(() => { window.__audioMs = 900; }); // long lines, so the next lines pile up
+  await setSub(page, "This is the first line");
+  await line(page, "Here is the second line");
+  await line(page, "And now the third line");
+  await sleep(3300);
+  played = await get(page, "__played");
+  assert.deepStrictEqual(played.map((p) => p.line), ["This is the first line", "Here is the second line", "And now the third line"]);
+  assert.strictEqual(await get(page, "__stopped"), 0, "no line may be cut off");
+  msgs = await get(page, "__messages");
+  assert.ok(msgs[1].pace > msgs[0].pace && msgs[2].pace > msgs[1].pace, "pace should rise: " + msgs.map((m) => m.pace));
+  ok("fast dialogue: all lines play in order, none is cut off, speed rises while lines wait");
   assert.ok(Math.abs((await volume(page)) - 1) < 0.03);
   await page.close();
 
-  // 4. error -> no audio, volume untouched, friendly note
-  page = await openPage(browser, { mode: "sarvam" });
+  // B4: requests run in parallel (do not wait for the previous line)
+  page = await openPage(browser, {});
+  await page.evaluate(() => { window.__delay = () => 600; });
+  await setSub(page, "first slow line here");
+  await line(page, "second slow line here");
+  await line(page, "third slow line here");
+  await sleep(100);
+  msgs = await get(page, "__messages");
+  assert.strictEqual(msgs.length, 3, "all three requests should be in flight before the first answer");
+  ok("Sarvam requests for new lines start immediately, in parallel (up to 3)");
+  await page.close();
+
+  // B5: far too late -> skipped
+  page = await openPage(browser, { maxLagMs: 200 });
+  await page.evaluate(() => { window.__delay = () => 450; });
+  await setSub(page, "Hello there my friend");
+  await sleep(700);
+  assert.strictEqual((await get(page, "__played")).length, 0);
+  assert.ok(/too far behind/.test((await lastStatus(page)).note));
+  assert.ok(Math.abs((await volume(page)) - 1) < 0.03);
+  ok("a line that would start far too late is skipped, not spoken out of sync");
+  await page.close();
+
+  // B6: short line skipped while behind
+  page = await openPage(browser, {});
+  await page.evaluate(() => { window.__audioMs = 1200; }); // long first line: the next three pile up behind it
+  await setSub(page, "This is a long first line");
+  await line(page, "Okay.", 100);
+  await line(page, "Here comes the third line", 100);
+  await line(page, "And this is the fourth line", 100);
+  await sleep(4300);
+  played = (await get(page, "__played")).map((p) => p.line);
+  assert.ok(!played.includes("Okay."), "short line should be skipped while behind: " + played);
+  assert.ok(played.includes("Here comes the third line") && played.includes("And this is the fourth line"));
+  ok("while behind, tiny lines like 'Okay.' are skipped so the voice catches up");
+  await page.close();
+
+  // B7: error -> skipped, explained, volume untouched
+  page = await openPage(browser, {});
   await page.evaluate(() => { window.__reply = () => ({ ok: false, error: "no_credits" }); });
-  await setSub(page, "Hello");
+  await setSub(page, "Hello there");
   await sleep(300);
   assert.strictEqual((await get(page, "__played")).length, 0);
   assert.ok(Math.abs((await volume(page)) - 1) < 0.03);
-  const st = (await get(page, "__statuses")).pop();
-  assert.ok(/credits/i.test(st.note), "status should explain: " + st.note);
+  assert.ok(/credits/i.test((await lastStatus(page)).note));
   ok("out-of-credits: nothing plays, volume stays normal, the popup status explains why");
   await page.close();
 
-  // 5. too late -> dropped
-  page = await openPage(browser, { mode: "sarvam", maxLateMs: 200 });
-  await page.evaluate(() => { window.__delay = () => 450; });
-  await setSub(page, "Hello");
-  await sleep(700);
-  assert.strictEqual((await get(page, "__played")).length, 0);
-  assert.ok(/too late/.test((await get(page, "__statuses")).pop().note));
-  ok("an answer that arrives later than the limit is dropped, not spoken out of sync");
+  // B8: seeking clears waiting lines
+  page = await openPage(browser, {});
+  await setSub(page, "This is the first line");
+  await line(page, "This is the second line");
+  await sleep(150); // second line is now read and waiting behind the first
+  assert.strictEqual((await get(page, "__messages")).length, 2);
+  await page.evaluate(() => document.getElementById("v").dispatchEvent(new Event("seeking")));
+  await sleep(1000);
+  played = (await get(page, "__played")).map((p) => p.line);
+  assert.ok(!played.includes("This is the second line"), "lines queued before a seek must not play: " + played);
+  assert.ok(Math.abs((await volume(page)) - 1) < 0.03);
+  ok("seeking clears the waiting lines and restores the volume");
   await page.close();
 
-  // 6. Phase 1 modes do not call Sarvam
+  // B9: optional catch-up pause
+  page = await openPage(browser, { catchUpPause: true });
+  await page.evaluate(() => {
+    const v = document.getElementById("v");
+    window.__vpaused = false; window.__pauses = 0; window.__plays = 0;
+    Object.defineProperty(v, "paused", { get: () => window.__vpaused });
+    v.pause = () => { window.__vpaused = true; window.__pauses++; v.dispatchEvent(new Event("pause")); };
+    v.play = () => { window.__vpaused = false; window.__plays++; v.dispatchEvent(new Event("play")); return Promise.resolve(); };
+    window.__delay = () => 300;
+  });
+  await setSub(page, "This is the first line");
+  await line(page, "Here is the second line", 100);
+  await line(page, "And now the third line", 100);
+  await sleep(150);
+  assert.strictEqual(await get(page, "__vpaused"), true, "movie should be paused while lines wait");
+  await sleep(1900);
+  assert.strictEqual(await get(page, "__vpaused"), false, "movie should resume after catching up");
+  assert.strictEqual((await get(page, "__played")).length, 3);
+  ok("catch-up option pauses the movie while lines wait and resumes once caught up; no line lost");
+  await page.close();
+
+  // B10: browser modes never contact Sarvam
   page = await openPage(browser, { mode: "timing" });
   await setSub(page, "Hello");
   await sleep(300);
