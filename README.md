@@ -2,7 +2,7 @@
 
 A personal browser extension that gives **English Netflix movies a live Tamil voiceover**, so the whole family can enjoy them together. It speaks natural, conversational Tamil the way people talk at home.
 
-> Status: **Phase 1 built (untested on real Netflix).** It reads subtitles, speaks them with the free browser voice and dips the volume. Translation and the Sarvam voice come in Phase 2. Try it with the [Phase 1 test guide](docs/PHASE1-TEST.md). See [docs/ROADMAP.md](docs/ROADMAP.md).
+> Status: **Phase 2 built, waiting for its first real Netflix test.** Phase 1 (subtitle reading, speaking, volume dip) worked on real Netflix. Phase 2 adds conversational Tamil translation and the Sarvam voice. Try it with the [Phase 2 test guide](docs/PHASE2-TEST.md). See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## How it works
 
@@ -33,7 +33,7 @@ It works like a live interpreter sitting next to you. **It never downloads, reco
 | ElevenLabs | Very expressive | Paid (small free tier) | Option |
 | Microsoft Edge built-in Tamil voices | Good | Free | Fallback |
 
-Check each provider's current pricing before subscribing.
+**Cost per full movie (estimate, not measured):** every line is translated (Rs 2 per 1,000 characters) and then voiced (Rs 2 per 1,000 characters on v4 Flash). For a movie with roughly 80,000 to 100,000 characters of dialogue that is about **Rs 320 to 400**. The popup shows a running estimate and stops at a spending cap you set. Check Sarvam's pricing page for current rates.
 
 ## Setup (home laptop, once Phase 1 is ready)
 1. Download this repo → open `chrome://extensions` (or `edge://extensions`).

@@ -1,15 +1,14 @@
-// Tamil Voiceover for Netflix: Phase 1
+// Tamil Voiceover for Netflix: Phase 2
 //
 // What this does:
 //   1. Watches Netflix's on-screen subtitles and notices each new line.
-//   2. Speaks the line with the browser's built-in voice (free, no API).
+//   2. Mode "sarvam": asks the background worker to translate the line into
+//      conversational Tamil and speak it with the Sarvam voice, then plays the audio.
+//      (Modes "tamil" and "timing" are the free Phase 1 browser-voice fallbacks.)
 //   3. Gently lowers the video volume while the voice speaks, then restores it.
 //
-// What it does NOT do yet (Phase 2): translate English -> conversational Tamil
-// and use the Sarvam voice. Until then, "tamil" mode speaks only lines that are
-// already Tamil (i.e. when you pick Tamil subtitles in Netflix).
-//
 // It only reads subtitle TEXT from the page. It never touches Netflix audio/video data.
+// The Sarvam API key is never read here: only background.js uses it.
 
 (() => {
   if (window.__tamilVOLoaded) return; // avoid double-loading
@@ -22,10 +21,12 @@
 
   const DEFAULTS = {
     enabled: true,
-    mode: "tamil",        // "tamil": speak only Tamil-script lines | "timing": speak any line (English voice for English) to test timing/volume dip
-    dip: 0.25,            // video volume while the voice speaks (25% of normal)
-    rate: 1.0,            // speaking speed
+    mode: "sarvam",       // "sarvam": translate + Sarvam voice | "tamil": browser voice, Tamil-script lines only | "timing": browser voice, any line
+    dip: 0.25,            // movie volume while the voice speaks (25% of normal)
+    rate: 1.0,            // speaking speed (browser voice and Sarvam pace)
+    boost: 1.0,           // loudness of the Sarvam voice (1.0 = normal)
     hideSubtitles: false, // hide the on-screen subtitle text (voice only)
+    maxLateMs: 4000,      // drop a Sarvam line that arrives later than this
   };
 
   let settings = { ...DEFAULTS };
@@ -53,18 +54,19 @@
         if (changes[key]) settings[key] = changes[key].newValue;
       }
       applyHideSubtitles();
-      if (!settings.enabled) stopSpeaking();
+      if (settings.boost && gainNode) gainNode.gain.value = settings.boost;
+      if (!settings.enabled) stopAll();
     });
   }
 
   // ---- Status shown in the popup (so you don't need DevTools) -------------
-  let status = { voice: "checking…", lastLine: "", note: "waiting for subtitles" };
+  let status = { voice: "checking…", engine: "-", lastLine: "", lastTamil: "", latencyMs: null, note: "waiting for subtitles" };
   function setStatus(patch) {
     status = { ...status, ...patch };
     if (store) store.set({ status });
   }
 
-  // ---- Voice --------------------------------------------------------------
+  // ---- Browser voice (Phase 1 fallback) -----------------------------------
   function pickVoice(langPrefix) {
     const voices = window.speechSynthesis.getVoices();
     return voices.find((v) => v.lang.replace("_", "-").toLowerCase().startsWith(langPrefix)) || null;
@@ -72,7 +74,7 @@
 
   function reportVoice() {
     const v = pickVoice("ta");
-    setStatus({ voice: v ? `${v.name} (${v.lang})` : "NO Tamil voice found in this browser" });
+    setStatus({ voice: v ? `${v.name} (${v.lang})` : "NO Tamil browser voice found" });
   }
   window.speechSynthesis.addEventListener("voiceschanged", reportVoice);
   reportVoice();
@@ -113,16 +115,28 @@
     }
   }
 
-  // ---- Speaking -----------------------------------------------------------
+  // Safety net: if the volume is lowered but nothing is speaking for ~3 s, restore it.
+  let idleTicks = 0;
+  setInterval(() => {
+    if (ducked && !currentSource && !current) {
+      if (++idleTicks >= 3) {
+        idleTicks = 0;
+        duck(false);
+      }
+    } else {
+      idleTicks = 0;
+    }
+  }, 1000);
+
+  // ---- Browser voice playback ---------------------------------------------
   let current = null; // the utterance we are currently speaking
 
-  function stopSpeaking() {
+  function stopBrowserVoice() {
     current = null;
     window.speechSynthesis.cancel();
-    duck(false);
   }
 
-  function speak(text, langPrefix) {
+  function speakBrowser(text, langPrefix) {
     window.speechSynthesis.cancel(); // newest line wins
     const u = new SpeechSynthesisUtterance(text);
     const voice = pickVoice(langPrefix);
@@ -145,6 +159,99 @@
     window.speechSynthesis.speak(u);
   }
 
+  // ---- Sarvam voice playback (Web Audio, so it can be boosted) ------------
+  let audioCtx = null;
+  let gainNode = null;
+  let currentSource = null;
+  let seq = 0; // increases with every new line; lets us discard answers that arrive too late
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      gainNode = audioCtx.createGain();
+      gainNode.connect(audioCtx.destination);
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    gainNode.gain.value = settings.boost;
+  }
+
+  function stopSarvamAudio() {
+    const src = currentSource;
+    currentSource = null; // clear first so its "ended" event is ignored
+    if (src) {
+      try { src.stop(); } catch (e) { /* already stopped */ }
+    }
+  }
+
+  function stopAll() {
+    seq++;
+    stopBrowserVoice();
+    stopSarvamAudio();
+    duck(false);
+  }
+
+  async function playBase64(b64, mySeq) {
+    ensureAudio();
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const buffer = await audioCtx.decodeAudioData(bytes.buffer);
+    if (mySeq !== seq) return; // a newer line arrived while decoding
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(gainNode);
+    src.onended = () => {
+      if (currentSource === src) {
+        currentSource = null;
+        duck(false);
+      }
+    };
+    currentSource = src;
+    duck(true);
+    src.start();
+  }
+
+  const ERROR_NOTES = {
+    no_key: "No Sarvam key yet. Open the popup and save your key.",
+    invalid_key: "Sarvam rejected the key (403). Check or re-save it in the popup.",
+    forbidden: "Sarvam refused the request (403).",
+    no_credits: "Out of Sarvam credits. Top up on the Sarvam dashboard.",
+    rate_limited: "Sarvam rate limit hit (429). Skipping this line.",
+    cap: "Spending cap reached. Raise the cap in the popup to continue.",
+    network: "Could not reach Sarvam (network).",
+    server: "Sarvam server error. Skipping this line.",
+  };
+
+  async function speakSarvam(text, isTamil) {
+    const mySeq = ++seq;
+    const t0 = performance.now();
+    stopBrowserVoice();
+    stopSarvamAudio(); // newest line wins (volume stays dipped to avoid pumping)
+    setStatus({ engine: "Sarvam", note: isTamil ? "voicing Tamil line…" : "translating + voicing…" });
+
+    let resp;
+    try {
+      resp = await chrome.runtime.sendMessage({ type: "line", text, skipTranslate: isTamil });
+    } catch (e) {
+      resp = { ok: false, error: "network" };
+    }
+    if (mySeq !== seq) return; // stale: a newer line has taken over
+    if (!resp || !resp.ok) {
+      duck(false);
+      return setStatus({ note: ERROR_NOTES[resp && resp.error] || "Sarvam error. Skipping this line." });
+    }
+    const took = Math.round(performance.now() - t0);
+    if (took > settings.maxLateMs) {
+      duck(false);
+      return setStatus({ latencyMs: took, note: `dropped: answer was too late (${took} ms)` });
+    }
+    setStatus({ lastTamil: resp.tamil, latencyMs: took, note: "speaking Tamil (Sarvam)" });
+    try {
+      await playBase64(resp.audio, mySeq);
+    } catch (e) {
+      duck(false);
+      setStatus({ note: "Could not play the audio: " + e.message });
+    }
+  }
+
   // ---- Handling each subtitle line ---------------------------------------
   function handleLine(text) {
     console.log("[TamilVO] subtitle:", text);
@@ -152,15 +259,19 @@
     if (!settings.enabled) return setStatus({ note: "paused (switched off)" });
 
     const isTamil = TAMIL_RE.test(text);
-    if (settings.mode === "tamil") {
-      if (!isTamil) {
-        return setStatus({ note: "English line skipped. Pick Tamil subtitles, or wait for Phase 2 (translation)." });
+    if (settings.mode === "sarvam") {
+      if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+        return setStatus({ note: "extension runtime unavailable; reload the page" });
       }
-      setStatus({ note: "speaking Tamil line" });
-      speak(text, "ta");
+      return speakSarvam(text, isTamil);
+    }
+    if (settings.mode === "tamil") {
+      if (!isTamil) return setStatus({ engine: "browser", note: "English line skipped in this mode. Switch to Sarvam mode." });
+      setStatus({ engine: "browser", note: "speaking Tamil line" });
+      speakBrowser(text, "ta");
     } else {
-      setStatus({ note: "timing test: speaking line" });
-      speak(text, isTamil ? "ta" : "en");
+      setStatus({ engine: "browser", note: "timing test: speaking line" });
+      speakBrowser(text, isTamil ? "ta" : "en");
     }
   }
 
@@ -188,14 +299,16 @@
     watchedVideos.add(video);
     video.addEventListener("pause", () => {
       window.speechSynthesis.pause();
+      if (audioCtx && audioCtx.state === "running") audioCtx.suspend();
       duck(false);
     });
     video.addEventListener("play", () => {
       window.speechSynthesis.resume();
-      if (window.speechSynthesis.speaking) duck(true);
+      if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+      if (window.speechSynthesis.speaking || currentSource) duck(true);
     });
     video.addEventListener("seeking", () => {
-      stopSpeaking();
+      stopAll();
       lastLine = "";
     });
   }

@@ -4,36 +4,79 @@
     <meta charset="utf-8" />
     <title>Tamil Voiceover</title>
     <style>
-      body { font-family: system-ui, sans-serif; width: 300px; padding: 12px; font-size: 14px; }
+      body { font-family: system-ui, sans-serif; width: 330px; padding: 12px; font-size: 14px; }
       h3 { margin: 0 0 8px; }
-      label { display: block; margin: 10px 0 2px; font-weight: 600; }
-      select, input[type="range"] { width: 100%; }
-      .row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+      h4 { margin: 14px 0 4px; font-size: 13px; border-top: 1px solid #ddd; padding-top: 10px; }
+      label { display: block; margin: 8px 0 2px; font-weight: 600; }
+      select, input[type="range"], input[type="password"], input[type="text"], input[type="number"] { width: 100%; box-sizing: border-box; }
+      .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+      .row > * { flex: 1; }
+      .row label { margin: 0; flex: 0 0 auto; }
       .hint { color: #555; font-size: 12px; margin-top: 2px; }
-      #status { margin-top: 14px; padding: 8px; background: #f2f2f2; border-radius: 6px; font-size: 12px; word-break: break-word; }
+      button { padding: 5px 8px; cursor: pointer; }
+      #keyState { font-size: 12px; margin-top: 4px; }
+      #usage, #status { margin-top: 8px; padding: 8px; background: #f2f2f2; border-radius: 6px; font-size: 12px; word-break: break-word; white-space: pre-wrap; }
     </style>
   </head>
   <body>
     <h3>Tamil Voiceover</h3>
 
-    <div class="row"><input type="checkbox" id="enabled" /><label for="enabled" style="margin:0">Voiceover on</label></div>
+    <div class="row"><input type="checkbox" id="enabled" style="flex:0 0 auto" /><label for="enabled">Voiceover on</label></div>
 
     <label for="mode">Mode</label>
     <select id="mode">
-      <option value="tamil">Tamil lines only (use Tamil subtitles)</option>
-      <option value="timing">Timing test (speaks any line)</option>
+      <option value="sarvam">Sarvam voice (translate + speak)</option>
+      <option value="tamil">Free browser voice: Tamil subtitles only</option>
+      <option value="timing">Free timing test (English voice)</option>
     </select>
-    <div class="hint">Timing test uses an English voice for English lines, to check timing and volume dip. Translation comes in Phase 2.</div>
 
-    <label for="dip">Movie volume while voice speaks: <span id="dipVal"></span></label>
-    <input type="range" id="dip" min="0" max="100" step="5" />
+    <h4>Sarvam key</h4>
+    <input type="password" id="key" placeholder="paste your Sarvam API key" autocomplete="off" />
+    <div class="row"><button id="saveKey">Save key</button><button id="removeKey">Remove key</button></div>
+    <div id="keyState"></div>
+    <div class="hint">Stored only in this browser. It is never shown again and never sent to Netflix.</div>
+
+    <h4>Voice</h4>
+    <label for="model">Model</label>
+    <select id="model">
+      <option value="bulbul:v4-flash">Bulbul v4 Flash (cheaper)</option>
+      <option value="bulbul:v3">Bulbul v3</option>
+    </select>
+    <label for="speaker">Voice</label>
+    <select id="speaker">
+      <option value="simran_en_conversation">Simran (conversation)</option>
+      <option value="simran_en_narration">Simran (narration)</option>
+      <option value="simran_enhi_companion">Simran (companion)</option>
+      <option value="gokul_ta_narration">Gokul (Tamil narration, male)</option>
+      <option value="vijay_ta_narration">Vijay (Tamil narration, male)</option>
+      <option value="aravind_ta_suspense">Aravind (Tamil suspense, male)</option>
+    </select>
+    <label for="customSpeaker">Custom speaker ID (optional, overrides the list)</label>
+    <input type="text" id="customSpeaker" placeholder="e.g. copy it from the Sarvam playground Code tab" />
+    <div class="row"><button id="sample">Speak sample</button></div>
 
     <label for="rate">Voice speed: <span id="rateVal"></span></label>
     <input type="range" id="rate" min="0.7" max="1.5" step="0.05" />
+    <label for="boost">Tamil voice loudness: <span id="boostVal"></span></label>
+    <input type="range" id="boost" min="1" max="3" step="0.1" />
 
-    <div class="row"><input type="checkbox" id="hideSubtitles" /><label for="hideSubtitles" style="margin:0">Hide on-screen subtitles</label></div>
+    <h4>Movie sound</h4>
+    <label for="dip">Movie volume while voice speaks: <span id="dipVal"></span></label>
+    <input type="range" id="dip" min="0" max="100" step="5" />
+    <div class="hint">This lowers the whole movie (music too). Higher = more music, but more English underneath.</div>
+    <div class="row"><input type="checkbox" id="hideSubtitles" style="flex:0 0 auto" /><label for="hideSubtitles">Hide on-screen subtitles</label></div>
 
+    <h4>Spending</h4>
+    <div id="usage"></div>
+    <label for="capRupees">Stop at (₹ estimated)</label>
+    <input type="number" id="capRupees" min="0" step="10" />
+    <div class="row"><button id="resetUsage">Reset counter</button></div>
+
+    <h4>Status</h4>
     <div id="status">Open a Netflix movie to see status.</div>
+    <div class="row"><button id="copyDiag">Copy diagnostics</button></div>
+    <div id="msg" class="hint"></div>
+
     <script src="popup.js"></script>
   </body>
 </html>

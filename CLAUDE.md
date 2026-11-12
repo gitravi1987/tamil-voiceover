@@ -19,8 +19,9 @@ At the start of each task, tell the owner in one line which model fits, so they 
 Flag it explicitly when the current model is more expensive than the task needs.
 
 ## Layout
-- `extension/`: the extension (`manifest.json`, `content.js`, `popup.html`)
+- `extension/`: the extension (`manifest.json`, `content.js` for the Netflix page, `background.js` for Sarvam calls and the key, `popup.html` and `popup.js`)
+- `tests/`: `phase1.test.js`, `phase2.test.js` (run with node; Playwright is needed)
 - `docs/`: PRD, architecture, roadmap, legal
 
 ## Testing
-Logic test (no Netflix needed): `node tests/phase1.test.js`. Real test: see `docs/PHASE1-TEST.md`. Load `extension/` unpacked in Chrome (`chrome://extensions` → Developer mode → Load unpacked), open a Netflix title with subtitles on, and check the DevTools console for `[TamilVO]` logs.
+Logic tests (no Netflix or Sarvam key needed): `node tests/phase1.test.js` and `node tests/phase2.test.js`. The Sarvam API facts we rely on are in `docs/ARCHITECTURE.md`; re-check them against docs.sarvam.ai if a call fails. Real test: see `docs/PHASE1-TEST.md`. Load `extension/` unpacked in Chrome (`chrome://extensions` → Developer mode → Load unpacked), open a Netflix title with subtitles on, and check the DevTools console for `[TamilVO]` logs.
