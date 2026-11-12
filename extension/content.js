@@ -29,6 +29,7 @@
     rate: 1.2,            // base speaking speed (browser voice rate and Sarvam pace)
     boost: 1.0,           // loudness of the Sarvam voice (1.0 = normal)
     hideSubtitles: false, // hide the on-screen subtitle text (voice only)
+    browserVoice: "",     // name of the browser Tamil voice to use ("" = first Tamil voice found)
     maxLagMs: 6000,       // skip a line if it would start more than this long after its subtitle appeared
     catchUpPause: false,  // pause the movie while 2+ lines are waiting, resume when caught up
   };
@@ -66,6 +67,7 @@
         if (changes[key]) settings[key] = changes[key].newValue;
       }
       applyHideSubtitles();
+      if (changes.browserVoice) reportVoice();
       if (settings.boost && gainNode) gainNode.gain.value = settings.boost;
       if (!settings.enabled || modeChanged) stopAll();
       if (changes.catchUpPause && !settings.catchUpPause) releaseCatchUpPause();
@@ -85,6 +87,10 @@
   // ---- Browser voice (Phase 1 fallback) -----------------------------------
   function pickVoice(langPrefix) {
     const voices = window.speechSynthesis.getVoices();
+    if (langPrefix === "ta" && settings.browserVoice) {
+      const chosen = voices.find((v) => v.name === settings.browserVoice);
+      if (chosen) return chosen; // the voice the owner picked in the popup
+    }
     return voices.find((v) => v.lang.replace("_", "-").toLowerCase().startsWith(langPrefix)) || null;
   }
 
@@ -423,6 +429,15 @@
     video.addEventListener("seeking", () => {
       stopAll();
       lastLine = "";
+    });
+  }
+
+  // ---- Free tools lab: the popup asks this page to test the built-in translator here ----
+  if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (!msg || msg.type !== "lab-translator") return false;
+      globalThis.TamilVOLab.runTranslatorLab("Netflix page").then(sendResponse);
+      return true; // answer arrives later
     });
   }
 

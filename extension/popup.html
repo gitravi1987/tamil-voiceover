@@ -15,6 +15,7 @@
       .hint { color: #555; font-size: 12px; margin-top: 2px; }
       button { padding: 5px 8px; cursor: pointer; }
       #keyState { font-size: 12px; margin-top: 4px; }
+      #labOut { white-space: pre-wrap; word-break: break-word; font-size: 12px; background: #f2f2f2; border-radius: 6px; padding: 8px; margin: 8px 0 0; }
       #usage, #status { margin-top: 8px; padding: 8px; background: #f2f2f2; border-radius: 6px; font-size: 12px; word-break: break-word; white-space: pre-wrap; }
     </style>
   </head>
@@ -36,7 +37,18 @@
     <div id="keyState"></div>
     <div class="hint">Stored only in this browser. It is never shown again and never sent to Netflix.</div>
 
-    <h4>Voice</h4>
+    <h4>Free Tamil voice (from your browser)</h4>
+    <label for="browserVoice">Tamil voice</label>
+    <select id="browserVoice"></select>
+    <div class="row"><button id="testVoice">Test voice</button></div>
+    <div class="hint" id="voiceHint"></div>
+
+    <h4>Free tools lab</h4>
+    <div class="hint">Checks whether your browser can translate English to Tamil for free (no account, no key) and shows sample results. Open a Netflix tab first to test inside the page as well.</div>
+    <div class="row"><button id="lab">Check free translator</button></div>
+    <pre id="labOut"></pre>
+
+    <h4>Sarvam voice (paid, optional)</h4>
     <label for="model">Model</label>
     <select id="model">
       <option value="bulbul:v4-flash">Bulbul v4 Flash (cheaper)</option>
@@ -80,6 +92,7 @@
     <div class="row"><button id="copyDiag">Copy diagnostics</button></div>
     <div id="msg" class="hint"></div>
 
+    <script src="lab.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

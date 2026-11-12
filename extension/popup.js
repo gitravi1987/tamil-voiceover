@@ -4,11 +4,13 @@
 
 const DEFAULTS = {
   enabled: true, mode: "sarvam", dip: 0.25, rate: 1.2, boost: 1.0, hideSubtitles: false, catchUpPause: false,
-  model: "bulbul:v4-flash", speaker: "gokul_ta_narration", customSpeaker: "", capRupees: 150,
+  browserVoice: "", model: "bulbul:v4-flash", speaker: "gokul_ta_narration", customSpeaker: "", capRupees: 150,
   usage: { translateChars: 0, ttsChars: 0, rupees: 0 },
 };
 const $ = (id) => document.getElementById(id);
 const note = (t) => { $("msg").textContent = t; };
+const SAMPLE_TAMIL = "டேய், இங்க வா! இது ரொம்ப முக்கியம்.";
+let currentBrowserVoice = "";
 
 function renderUsage(u) {
   u = u || DEFAULTS.usage;
@@ -58,7 +60,9 @@ function renderKeyState(hasKey) {
 }
 
 chrome.storage.local.get({ ...DEFAULTS, status: null, sarvamKey: "" }, (s) => {
+  currentBrowserVoice = s.browserVoice;
   render(s);
+  renderVoices();
   renderStatus(s.status);
   renderKeyState(!!s.sarvamKey);
 });
@@ -72,6 +76,7 @@ function save() {
   const s = {
     enabled: $("enabled").checked,
     mode: $("mode").value,
+    browserVoice: $("browserVoice").value,
     model: $("model").value,
     speaker: $("speaker").value,
     customSpeaker: $("customSpeaker").value.trim(),
@@ -86,7 +91,7 @@ function save() {
   chrome.storage.local.set(s);
 }
 
-["enabled", "mode", "model", "speaker", "customSpeaker", "dip", "rate", "boost", "hideSubtitles", "catchUpPause", "capRupees"]
+["enabled", "mode", "browserVoice", "model", "speaker", "customSpeaker", "dip", "rate", "boost", "hideSubtitles", "catchUpPause", "capRupees"]
   .forEach((id) => $(id).addEventListener("input", save));
 
 // ---- key (write-only) ----
@@ -127,8 +132,9 @@ $("resetUsage").addEventListener("click", () => {
 
 // ---- diagnostics (never includes the key) ----
 $("copyDiag").addEventListener("click", () => {
-  chrome.storage.local.get({ ...DEFAULTS, status: null, sarvamKey: "" }, async (s) => {
+  chrome.storage.local.get({ ...DEFAULTS, status: null, sarvamKey: "", lab: null }, async (s) => {
     const { sarvamKey, ...safe } = s;
+    safe.tamilVoicesSeenHere = tamilVoices().map((v) => `${v.name} (${v.lang})`);
     safe.hasKey = !!sarvamKey;
     safe.version = chrome.runtime.getManifest().version;
     safe.browser = navigator.userAgent;
@@ -139,4 +145,77 @@ $("copyDiag").addEventListener("click", () => {
       note("Could not copy automatically.");
     }
   });
+});
+
+// ---- free Tamil voice picker (voices come from the browser, so this costs nothing) ----
+function tamilVoices() {
+  return (window.speechSynthesis ? window.speechSynthesis.getVoices() : [])
+    .filter((v) => v.lang.replace("_", "-").toLowerCase().startsWith("ta"));
+}
+
+function renderVoices() {
+  const sel = $("browserVoice");
+  const voices = tamilVoices();
+  sel.innerHTML = "";
+  const auto = document.createElement("option");
+  auto.value = "";
+  auto.textContent = "Auto (first Tamil voice found)";
+  sel.appendChild(auto);
+  for (const v of voices) {
+    const o = document.createElement("option");
+    o.value = v.name;
+    o.textContent = `${v.name} (${v.lang})`;
+    sel.appendChild(o);
+  }
+  sel.value = voices.some((v) => v.name === currentBrowserVoice) ? currentBrowserVoice : "";
+  $("voiceHint").textContent = voices.length
+    ? `${voices.length} Tamil voice(s) found in this browser.`
+    : "No Tamil voices found yet. They can take a few seconds to appear: close and reopen this popup.";
+}
+
+if (window.speechSynthesis) window.speechSynthesis.addEventListener("voiceschanged", renderVoices);
+$("browserVoice").addEventListener("input", () => { currentBrowserVoice = $("browserVoice").value; });
+renderVoices();
+
+$("testVoice").addEventListener("click", () => {
+  const voices = tamilVoices();
+  const v = voices.find((x) => x.name === $("browserVoice").value) || voices[0];
+  const u = new SpeechSynthesisUtterance(SAMPLE_TAMIL);
+  if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = "ta-IN"; }
+  u.rate = Number($("rate").value) || 1;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(u);
+  note(v ? `Speaking with ${v.name} (${v.lang})` : "No Tamil voice found; trying the browser default.");
+});
+
+// ---- free tools lab: can this browser translate English -> Tamil for free? ----
+function formatLab(r) {
+  const lines = [`[${r.where}]`];
+  lines.push(`Translator API present: ${r.hasTranslator ? "yes" : "no"}`);
+  if (r.availability) lines.push(`English -> Tamil availability: ${r.availability}`);
+  if (r.createMs != null) lines.push(`Ready in: ${r.createMs} ms`);
+  for (const x of r.results) lines.push(`${x.english}\n   -> ${x.tamil}  (${x.ms} ms)`);
+  if (r.error) lines.push(`Problem: ${r.error}`);
+  return lines.join("\n");
+}
+
+async function askNetflixPage() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !/netflix\.com/.test(tab.url || "")) {
+      return { where: "Netflix page", hasTranslator: false, results: [], error: "Not tested: the active tab is not a Netflix tab." };
+    }
+    return await chrome.tabs.sendMessage(tab.id, { type: "lab-translator" });
+  } catch (e) {
+    return { where: "Netflix page", hasTranslator: false, results: [], error: "Not tested: " + e.message };
+  }
+}
+
+$("lab").addEventListener("click", async () => {
+  $("labOut").textContent = "Testing… the first run may download a small language model, so wait up to a minute.";
+  const popup = await TamilVOLab.runTranslatorLab("Popup");
+  $("labOut").textContent = formatLab(popup) + "\n\n(testing the Netflix page…)";
+  const page = await askNetflixPage();
+  $("labOut").textContent = formatLab(popup) + "\n\n" + formatLab(page);
+  chrome.storage.local.set({ lab: { popup, page } });
 });

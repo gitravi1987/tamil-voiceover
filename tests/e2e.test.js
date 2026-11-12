@@ -47,6 +47,30 @@ async function run(withKey) {
   return { sarvamCalls, st };
 }
 
+// The REAL popup page of the real extension: voice picker and free-translator lab must load
+// and finish with a readable report (whatever this browser's built-in translator can do).
+async function popupLab() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-popup-"));
+  const ctx = await chromium.launchPersistentContext(dir, {
+    headless: true,
+    channel: "chromium",
+    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
+  });
+  let [sw] = ctx.serviceWorkers();
+  if (!sw) sw = await ctx.waitForEvent("serviceworker", { timeout: 15000 });
+  const id = new URL(sw.url()).host;
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto(`chrome-extension://${id}/popup.html`);
+  const voiceHint = await page.textContent("#voiceHint");
+  await page.click("#lab");
+  await page.waitForFunction(() => document.getElementById("labOut").textContent.includes("[Netflix page]"), null, { timeout: 150000 });
+  const out = await page.textContent("#labOut");
+  await ctx.close();
+  return { voiceHint, out, errors };
+}
+
 (async () => {
   let r = await run(true);
   assert.deepStrictEqual(r.sarvamCalls.map((c) => c.path), ["/translate", "/text-to-speech"]);
@@ -57,5 +81,11 @@ async function run(withKey) {
   assert.strictEqual(r.sarvamCalls.length, 0);
   assert.ok(/No Sarvam key/.test(r.st.note), r.st.note);
   console.log("PASS 2. real extension with no key: silent, and the status says the key is missing");
-  console.log("\nAll 2 end-to-end checks passed.");
+  const lab = await popupLab();
+  assert.strictEqual(lab.errors.length, 0, lab.errors.join("; "));
+  assert.ok(/Tamil voice|No Tamil voices/.test(lab.voiceHint), lab.voiceHint);
+  assert.ok(lab.out.includes("Translator API present:") && lab.out.includes("[Popup]") && lab.out.includes("[Netflix page]"), lab.out);
+  console.log("PASS 3. real popup: voice picker loads, and the free-translator lab ends with a readable report");
+  console.log("   (information only) this Chromium reports:\n   " + lab.out.split("\n").slice(0, 4).join("\n   "));
+  console.log("\nAll 3 end-to-end checks passed.");
 })().catch((e) => { console.error("E2E FAIL:", e.message); process.exit(1); });

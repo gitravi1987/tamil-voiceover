@@ -10,7 +10,9 @@ Netflix page (netflix.com/watch/*)
       ├─ POST /text-to-speech    bulbul:v4-flash (or v3), mp3        -> base64 audio
       ├─ spending counter + hard cap (blocks calls before they are sent)
       └─ in-memory cache (repeat lines are not billed twice)
- popup.html / popup.js    settings, key (write-only), Speak sample, usage, diagnostics
+ popup.html / popup.js    settings, key (write-only), Speak sample, usage, diagnostics,
+                         free Tamil voice picker + Test voice, free-translator lab
+lab.js                   shared by popup and Netflix page: tests the browser's built-in Translator API
 ```
 
 ## Per-line flow (Phase 2.1: ordered queue)
